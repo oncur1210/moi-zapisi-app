@@ -1,4 +1,4 @@
-const V = 'zapisi-v3';
+const V = 'zapisi-v4';
 const SHELL = ['./', 'index.html', 'app.js', 'styles.css', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {

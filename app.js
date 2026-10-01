@@ -141,7 +141,11 @@ ${text}
 async function polish(kind, text, extra = {}) {
   if (!text.trim()) throw new Error('Сначала надиктуй текст');
   try { return await askClaude(kind, text, extra); }
-  catch (e) { toast('ИИ недоступен (' + e.message + '). Сделал простую правку.'); return localPolish(kind, text, extra); }
+  catch (e) {
+    const noKey = !Settings.get().apiKey;
+    toast(noKey ? 'Сделал простую правку. Умная правка включается ключом в Настройках, это по желанию.' : 'Claude недоступен (' + e.message + '). Сделал простую правку.', 4500);
+    return localPolish(kind, text, extra);
+  }
 }
 
 /* ---------- календарь ---------- */
