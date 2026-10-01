@@ -82,21 +82,26 @@ function voiceField(textarea, hint) {
     if (!SR) return toast('Нужен Chrome на Android');
     if (want) return stop();
     rec = new SR(); rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = true;
+    // Chrome на Android присылает накопленные и повторные результаты, поэтому текст сессии
+    // каждый раз собирается заново из всех результатов и заменяет прежний кусок после base.
+    let base = textarea.value;
     rec.onresult = e => {
-      let interim = '';
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const txt = e.results[i][0].transcript;
-        if (e.results[i].isFinal) {
-          const cur = textarea.value;
-          const sep = cur && !/\s$/.test(cur) ? ' ' : '';
-          textarea.value = cur + sep + sentenceCase(applyCommands(' ' + txt.trim()).trim());
-          textarea.dispatchEvent(new Event('input'));
-        } else interim += txt;
-      }
-      status.textContent = interim ? '… ' + interim : 'Слушаю';
+      const parts = [];
+      for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0].transcript.trim());
+      const norm = x => x.toLowerCase().replace(/\s+/g, ' ');
+      const kept = parts.filter((t, i) => t && !parts.slice(i + 1).some(n => norm(n).startsWith(norm(t))));
+      const spoken = sentenceCase(applyCommands(' ' + kept.join(' ')).trim());
+      const sep = base && spoken && !/\s$/.test(base) ? ' ' : '';
+      textarea.value = base + sep + spoken;
+      textarea.dispatchEvent(new Event('input'));
+      status.textContent = 'Слушаю';
     };
     rec.onerror = e => { if (e.error === 'not-allowed') { toast('Разреши доступ к микрофону'); stop(); } else if (e.error !== 'no-speech') status.textContent = 'Ошибка: ' + e.error; };
-    rec.onend = () => { if (want) { try { rec.start(); } catch { /* уже запущен */ } } else btn.classList.remove('rec'); };
+    rec.onend = () => {
+      if (!want) return btn.classList.remove('rec');
+      base = textarea.value; // новая сессия начинается с уже набранного
+      setTimeout(() => { if (want) { try { rec.start(); } catch { /* уже запущен */ } } }, 200);
+    };
     want = true; btn.classList.add('rec'); status.textContent = 'Слушаю'; rec.start();
   });
   textarea._stopVoice = stop;
