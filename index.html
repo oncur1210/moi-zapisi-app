@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#14161f">
+<title>Мои записи</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="top">
+  <h1 id="title">Заметки</h1>
+  <div class="top-actions">
+    <input id="search" type="search" placeholder="Поиск" aria-label="Поиск">
+    <button id="menuBtn" class="icon" aria-label="Меню">⋮</button>
+  </div>
+</header>
+
+<main id="list" class="list" aria-live="polite"></main>
+
+<button id="fab" class="fab" aria-label="Новая запись">+</button>
+
+<nav class="tabs" id="tabs">
+  <button data-tab="note" class="on"><span>📝</span>Заметки</button>
+  <button data-tab="diary"><span>📔</span>Дневник</button>
+  <button data-tab="mail"><span>✉️</span>Письма</button>
+  <button data-tab="meeting"><span>📅</span>Встречи</button>
+  <button data-tab="reply"><span>💬</span>Ответы</button>
+</nav>
+
+<section id="sheet" class="sheet" hidden>
+  <div class="sheet-bar">
+    <button id="back" class="icon" aria-label="Назад">←</button>
+    <span id="sheetTitle"></span>
+    <button id="del" class="icon danger" aria-label="Удалить">🗑</button>
+  </div>
+  <div id="form" class="form"></div>
+</section>
+
+<div id="menu" class="menu" hidden>
+  <button id="exportBtn">Скачать резервную копию</button>
+  <button id="importBtn">Загрузить копию</button>
+  <button id="settingsBtn">Настройки</button>
+  <input id="importFile" type="file" accept="application/json" hidden>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
