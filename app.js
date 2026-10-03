@@ -73,6 +73,15 @@ const VOICE_CMDS = [
 function applyCommands(t) { for (const [re, to] of VOICE_CMDS) t = t.replace(re, to); return t; }
 function sentenceCase(t) { return t.replace(/(^|[.!?]\s+|\n)([а-яёa-z])/g, (m, a, b) => a + b.toUpperCase()); }
 
+// Склейка: заглавная буква только в начале текста и после конца предложения
+function joinSpoken(base, spokenRaw) {
+  const raw = applyCommands(' ' + spokenRaw).trim();
+  if (!raw) return base;
+  const sep = base && !/\s$/.test(base) ? ' ' : '';
+  const tail = base.slice(-3);
+  return base + sep + sentenceCase(tail + sep + raw).slice(tail.length + sep.length);
+}
+
 function voiceField(textarea, hint) {
   const status = el('div', { class: 'interim' }, SR ? 'Нажми на микрофон и говори. Команды: "запятая", "точка", "новая строка".' : 'Голосовой ввод не поддерживается в этом браузере. Открой в Chrome.');
   const btn = el('button', { class: 'micbtn', type: 'button', 'aria-label': 'Диктовать' }, '🎙');
@@ -81,26 +90,41 @@ function voiceField(textarea, hint) {
   btn.addEventListener('click', () => {
     if (!SR) return toast('Нужен Chrome на Android');
     if (want) return stop();
-    rec = new SR(); rec.lang = 'ru-RU'; rec.continuous = true; rec.interimResults = true;
-    // Chrome на Android присылает накопленные и повторные результаты, поэтому текст сессии
-    // каждый раз собирается заново из всех результатов и заменяет прежний кусок после base.
-    let base = textarea.value;
-    rec.onresult = e => {
-      const parts = [];
-      for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0].transcript.trim());
-      const norm = x => x.toLowerCase().replace(/\s+/g, ' ');
-      const kept = parts.filter((t, i) => t && !parts.slice(i + 1).some(n => norm(n).startsWith(norm(t))));
-      const spoken = sentenceCase(applyCommands(' ' + kept.join(' ')).trim());
-      const sep = base && spoken && !/\s$/.test(base) ? ' ' : '';
-      textarea.value = base + sep + spoken;
+    const live = Settings.get().voiceMode === 'live';
+    rec = new SR(); rec.lang = 'ru-RU'; rec.continuous = live; rec.interimResults = true;
+    let base = textarea.value, lastFinal = '', lastAt = 0;
+    const append = txt => {
+      const now = Date.now();
+      if (!txt || (txt === lastFinal && now - lastAt < 2000)) return; // повтор той же фразы подряд
+      lastFinal = txt; lastAt = now;
+      textarea.value = joinSpoken(textarea.value, txt);
       textarea.dispatchEvent(new Event('input'));
-      status.textContent = 'Слушаю';
+    };
+    rec.onresult = e => {
+      if (live) {
+        // режим "поток": Chrome на Android присылает накопленные результаты, собираем текст заново
+        const parts = [];
+        for (let i = 0; i < e.results.length; i++) parts.push(e.results[i][0].transcript.trim());
+        const norm = x => x.toLowerCase().replace(/\s+/g, ' ');
+        const kept = parts.filter((t, i) => t && !parts.slice(i + 1).some(n => norm(n).startsWith(norm(t))));
+        textarea.value = joinSpoken(base, kept.join(' '));
+        textarea.dispatchEvent(new Event('input'));
+        status.textContent = 'Слушаю';
+        return;
+      }
+      // режим "по фразам": каждая законченная фраза добавляется один раз
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i], txt = r[0].transcript.trim();
+        if (r.isFinal) append(txt); else interim = txt;
+      }
+      status.textContent = interim ? '… ' + interim : 'Слушаю';
     };
     rec.onerror = e => { if (e.error === 'not-allowed') { toast('Разреши доступ к микрофону'); stop(); } else if (e.error !== 'no-speech') status.textContent = 'Ошибка: ' + e.error; };
     rec.onend = () => {
       if (!want) return btn.classList.remove('rec');
       base = textarea.value; // новая сессия начинается с уже набранного
-      setTimeout(() => { if (want) { try { rec.start(); } catch { /* уже запущен */ } } }, 200);
+      setTimeout(() => { if (want) { try { rec.start(); } catch { /* уже запущен */ } } }, 250);
     };
     want = true; btn.classList.add('rec'); status.textContent = 'Слушаю'; rec.start();
   });
@@ -369,6 +393,9 @@ function settingsDialog() {
   const mk = (label, key, ph, type = 'text') => { const i = el('input', { type, placeholder: ph, autocomplete: 'off' }); i.value = s[key] || ''; i.addEventListener('input', () => { s[key] = i.value.trim(); Settings.set(s); }); return field(label, i); };
   f.append(mk('Подпись в письмах', 'signature', 'Эдуард Касьян'),
     mk('Ключ Claude API (для умной правки текста)', 'apiKey', 'sk-ant-...', 'password'),
+    field('Режим диктовки', (() => { const sel = el('select', { onchange: e => { s.voiceMode = e.target.value; Settings.set(s); } },
+      el('option', { value: 'phrase', selected: s.voiceMode !== 'live' }, 'По фразам (надежный)'),
+      el('option', { value: 'live', selected: s.voiceMode === 'live' }, 'Поток (слова сразу, но возможны повторы)')); return sel; })()),
     el('p', { class: 'hint' }, 'Ключ хранится только на этом телефоне. Без него работает простая правка. Все записи тоже лежат только на телефоне: делай резервную копию из меню, иначе очистка данных Chrome их удалит.'));
   $('#sheet').hidden = false; $('#sheet').dataset.settings = '1';
 }
